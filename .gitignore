@@ -107,3 +107,6 @@ venv.bak/
 .DS_Store
 .idea/
 data/
+.direnv/
+*.pkl
+*.csv

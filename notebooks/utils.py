@@ -25,14 +25,14 @@ def load(task, table, **kwargs):
         raise FileNotFoundError(table_name)
 
     table_path = os.path.join(data_path, table_name)
-    df_x = read_csv(table_path, **kwargs)
+    df = read_csv(table_path, **kwargs)
     target = None
     if 'train' in table_name:
-        target = df_x['target']
-        df_x.drop('target', axis=1, inplace=True)
+        target = df['target']
+        df.drop('target', axis=1, inplace=True)
     elif 'test-target.csv' in table_name:
-        target = df_x
-        df_x = None
+        target = df.set_index('line_id')
+        df = None
     elif 'test.csv' in table_name:
         target = None
-    return df_x, target
+    return df, target
