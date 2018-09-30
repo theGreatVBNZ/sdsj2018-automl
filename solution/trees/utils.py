@@ -46,6 +46,15 @@ def load(task, table, **kwargs):
     return df, target
 
 
+def pprint(*args):
+    """
+    DEBUG PRINT
+    """
+    print('------------------------------------')
+    print(' '.join([str(arg) if not isinstance(arg, float) else str(round(arg, 2)) for arg in args]))
+    print('----------***************-----------')
+
+
 def parse_dt(x):
     if not isinstance(x, str):
         return None
@@ -139,8 +148,11 @@ def scale(df_x, scaler):
     return pd.DataFrame(data=scaler.transform(df_x), columns=df_x.columns)
 
 
-def make_predictions(df_transformed, model):
-    predictions = model.predict(df_transformed)
+def make_predictions(df_transformed, model, proba=False):
+    if proba:
+        predictions = model.predict_proba(df_transformed)[:, 1]
+    else:
+        predictions = model.predict(df_transformed)
     return predictions
 
 
@@ -191,7 +203,7 @@ def models_factory(base_model, **params):
 
 
 def assess(model):
-    print('----------------------------\n', model, '\n')
+    pprint(model)
     train_err, valid_err, test_err = [], [], []
     for i in range(10):
         df_x, target = load(1, 'train')

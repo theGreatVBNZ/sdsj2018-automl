@@ -46,6 +46,15 @@ def load(task, table, **kwargs):
     return df, target
 
 
+def pprint(*args):
+    """
+    DEBUG PRINT
+    """
+    print('------------------------------------')
+    print(' '.join([str(arg) if not isinstance(arg, float) else str(round(arg, 2)) for arg in args]))
+    print('----------***************-----------')
+
+
 def parse_dt(x):
     if not isinstance(x, str):
         return None
