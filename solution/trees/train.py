@@ -31,7 +31,7 @@ def main():
     df_x.drop('target', axis=1, inplace=True)
     is_big = df_x.memory_usage().sum() > BIG_DATASET_SIZE
 
-    pprint(f'Dataset read, shape {df_x.shape}, \nBig: {is_big}')
+    print(f'Dataset read, shape {df_x.shape}, \nBig: {is_big}')
 
     # TODO: Создать pipeline для больших датасетов
     if is_big:
@@ -45,7 +45,7 @@ def main():
         pipeline.append(partial(make_predictions, model=model))
 
         rmse = root_mean_squared_error(model.predict(df_x), target)
-        pprint(f'RMSE: {rmse}')
+        print(f'RMSE: {rmse}')
 
         pipeline_path = os.path.join(args.model_dir, 'pipeline.pkl')
         with open(pipeline_path, 'wb') as pickle_file:
@@ -56,14 +56,14 @@ def main():
         pipeline.append(partial(make_predictions, model=model, proba=True))
 
         roc_auc = roc_auc_score(target, model.predict_proba(df_x)[:, 1])
-        pprint(f'ROC-AUC: {roc_auc}')
+        print(f'ROC-AUC: {roc_auc}')
 
         pipeline_path = os.path.join(args.model_dir, 'pipeline.pkl')
         with open(pipeline_path, 'wb') as pickle_file:
             pickle.dump(pipeline, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
 
     elapsed_time = time.time() - start_time
-    pprint(f'Train time: {elapsed_time}')
+    print(f'Train time: {elapsed_time}')
 
 
 if __name__ == '__main__':

@@ -25,7 +25,7 @@ if __name__ == '__main__':
 
     # read dataset
     df = pd.read_csv(args.test_csv)
-    pprint(f'Dataset read, shape {df.shape}')
+    print(f'Dataset read, shape {df.shape}')
 
     df['prediction'] = predict(df, pipeline)
     df[['line_id', 'prediction']].to_csv(args.prediction_csv, index=False)

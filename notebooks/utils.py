@@ -19,7 +19,7 @@ def load(task, table, **kwargs):
     :param table: Имя таблицы
     :return: X, y
     """
-    task_postfix = {i: 'r' if i < 3 else 'c' for i in range(1, 9)}
+    task_postfix = {i: 'r' if i < 4 else 'c' for i in range(1, 9)}
     data_dir = 'data'
     tables_dir = f'check_{task}_{task_postfix[task]}'
     data_path = os.path.join('..', data_dir, tables_dir)
