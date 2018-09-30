@@ -5,6 +5,7 @@ import pandas as pd
 import pickle
 import time
 
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor
 from sklearn.linear_model import Ridge, LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
@@ -96,16 +97,16 @@ if __name__ == '__main__':
     # fitting
     model_config['mode'] = args.mode
     if args.mode == 'regression':
-        model = Ridge()
+        model = Ridge(alpha=30, fit_intercept=True)
     else:
-        model = LogisticRegression()
+        model = GradientBoostingClassifier(n_estimators=100)
 
     model.fit(df_X, df_y)
     model_config['model'] = model
 
     from sklearn.metrics import mean_squared_error
-    mse = mean_squared_error(model.predict(df_X), df_y)
-    print(f'MSE: {mse}')
+    rmse = np.sqrt(mean_squared_error(model.predict(df_X), df_y))
+    print(f'RMSE: {rmse}')
 
     model_config_filename = os.path.join(args.model_dir, 'model_config.pkl')
     with open(model_config_filename, 'wb') as fout:
