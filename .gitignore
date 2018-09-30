@@ -108,5 +108,4 @@ venv.bak/
 .idea/
 data/
 .direnv/
-*.pkl
-*.csv
+
