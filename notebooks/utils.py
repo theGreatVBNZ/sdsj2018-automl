@@ -12,7 +12,7 @@ from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 
 
-@lru_cache()
+# @lru_cache()
 def load(task, table, **kwargs):
     """
     :param task: Номер задачи
@@ -64,23 +64,30 @@ def parse_dt(x):
         return datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S')
     else:
         return None
+    
 
-
-def transform_datetime_features(df):
+def select_datetime_columns(df):
     datetime_columns = [
         col_name
         for col_name in df.columns
         if col_name.startswith('datetime')
     ]
+    return datetime_columns
+
+
+def transform_datetime_features(df_x, datetime_columns):
+    df_datetime = pd.DataFrame()
     for col_name in datetime_columns:
-        df[col_name] = df[col_name].apply(lambda x: parse_dt(x))
-        df['number_weekday_{}'.format(col_name)] = df[col_name].apply(lambda x: x.weekday())
-        df['number_month_{}'.format(col_name)] = df[col_name].apply(lambda x: x.month)
-        df['number_day_{}'.format(col_name)] = df[col_name].apply(lambda x: x.day)
-        df['number_hour_{}'.format(col_name)] = df[col_name].apply(lambda x: x.hour)
-        df['number_hour_of_week_{}'.format(col_name)] = df[col_name].apply(lambda x: x.hour + x.weekday() * 24)
-        df['number_minute_of_day_{}'.format(col_name)] = df[col_name].apply(lambda x: x.minute + x.hour * 60)
-    return df
+        col = df_x[col_name].apply(lambda x: parse_dt(x))
+        df_x[col_name] = col # Inplace Transform
+        df_datetime[f'dt_number_weekday_{col_name}'] = col.apply(lambda x: x.weekday())
+        df_datetime[f'dt_number_month_{col_name}'] = col.apply(lambda x: x.month)
+        df_datetime[f'dt_number_day_{col_name}'] = col.apply(lambda x: x.day)
+        df_datetime[f'dt_number_hour_{col_name}'] = col.apply(lambda x: x.hour)
+        df_datetime[f'dt_number_hour_of_week_{col_name}'] = col.apply(lambda x: x.hour + x.weekday() * 24)
+        df_datetime[f'dt_number_minute_of_day_{col_name}'] = col.apply(lambda x: x.minute + x.hour * 60)
+    df_x = pd.concat([df_x, df_datetime], axis=1)
+    return df_x
 
 
 def constant_features(df_x):
@@ -99,6 +106,9 @@ def drop_columns(df_x, cols):
 def select_for_encoding(df_x, max_unique=20):
     categorical = {}
     for col_name in list(df_x.columns):
+        if col_name.startswith('dt'):
+            continue
+
         col_unique_values = df_x[col_name].unique()
         if 2 < len(col_unique_values) <= max_unique:
             categorical[col_name] = col_unique_values
@@ -129,7 +139,7 @@ def select_numeric_columns(df_x):
     numeric_columns = [
         col_name
         for col_name in df_x.columns
-        if col_name.startswith('number') or col_name.startswith('onehot')
+        if col_name.startswith('number') or col_name.startswith('onehot') or col_name.startswith('dt')
     ]
     return numeric_columns
 
@@ -148,14 +158,22 @@ def scale(df_x, scaler):
     return pd.DataFrame(data=scaler.transform(df_x), columns=df_x.columns)
 
 
-def make_predictions(df_transformed, model):
-    predictions = model.predict(df_transformed)
+def make_predictions(df_transformed, model, proba=False):
+    if proba:
+        predictions = model.predict_proba(df_transformed)[:, 1]
+    else:
+        predictions = model.predict(df_transformed)
     return predictions
 
 
 def transform_data(df_x, target):
+    # TODO: inplace functions
     pipeline = []
 
+    datetime_columns = select_datetime_columns(df_x)
+    df_x = transform_datetime_features(df_x, datetime_columns)
+    pipeline.append(partial(transform_datetime_features, datetime_columns=datetime_columns))
+    
     constant_columns = constant_features(df_x)
     df_x = drop_columns(df_x, cols=constant_columns)
     pipeline.append(partial(drop_columns, cols=constant_columns))
