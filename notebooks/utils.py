@@ -8,8 +8,9 @@ from IPython.display import display
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import lightgbm as lgb
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, roc_auc_score
 from sklearn.model_selection import train_test_split
 
 
@@ -127,22 +128,28 @@ def one_hot_encoding(df_x, categorical):
 
 
 def loading_bar(idx, total, value, frequency=1):
-    if idx % frequency == 0:
-        pprint(f'[{idx + 1} / {total}]: {value}')
+    for idx in range(total):
+        if idx % frequency == 0:
+            print(f'[{idx + 1} / {total}]: {value}')
+        elif (total - idx) < frequency and round(frequency / 10) > 1:
+            if idx % round(frequency / 10) == 0:
+                print(f'[{idx + 1} / {total}]: {value}')
 
 
 def one_hot_encoding_fast(df_x, categorical):
     dummies = [df_x, ]
+    print('The Number of Categorical Features:', len(categorical))
     for i, (col_name, unique_values) in enumerate(categorical.items()):
-        loading_bar(i, len(categorical), col_name, frequency=500)
+        # loading_bar(i, len(categorical), col_name, frequency=5000)
+        # print(col_name)
         if col_name in df_x.columns:
             df_dummies = pd.get_dummies(df_x[col_name], prefix=f'onehot_{col_name}', prefix_sep='=')
             dummies.append(df_dummies)
         else:
+            df_dummies = pd.DataFrame()
             for unique_value in unique_values:
-                df_dummies = pd.DataFrame()
                 df_dummies[f'onehot_{col_name}={unique_value}'] = np.nan
-                dummies.append(df_dummies)
+            dummies.append(df_dummies)
     return pd.concat(dummies, axis=1)
 
 
@@ -154,7 +161,8 @@ def find_missings(df_x):
 def fill_missings(df_x, columns):
     df_x = df_x.copy()
     for col_name in columns:
-        df_x[col_name].fillna(-1, inplace=True)
+        # df_x[col_name].fillna(-1, inplace=True)
+        df_x[col_name].replace([np.nan, np.inf, -np.inf], -1, inplace=True)
     return df_x
 
 
@@ -174,7 +182,10 @@ def select_numeric_columns(df_x):
 
 
 def keep_columns(df_x, columns):
-    return df_x[columns].copy()
+    for col in columns:
+        if col not in df_x.columns:
+            df_x[col] = np.nan
+    return df_x[columns]
 
 
 def create_scaler(df_x):
@@ -239,26 +250,33 @@ def make_predictions(df_transformed, model, proba=False):
 
 def transform_data(df_x, target):
     # TODO: inplace functions
+    total_time = time.time()
+
     pipeline = []
 
     # DateTime features
+    start_time = time.time()
+    pprint('DateTime features')
     datetime_columns = select_datetime_columns(df_x)
     start_columns = list(df_x.columns)
     df_x = transform_datetime_features(df_x, datetime_columns)
     dt_features = [col for col in df_x.columns if col not in start_columns]
     pipeline.append(partial(transform_datetime_features, datetime_columns=datetime_columns))
+    pprint(f'Time elapsed for {transform_datetime_features}: {time.time() - start_time} \nColumns updated: {len(dt_features)}')
 
     # Lag Features
     start_time = time.time()
+    pprint('Lag Features')
     start_columns = df_x.columns
     df_x = create_lag_features(df_x, datetime_columns)
     pipeline.append(partial(create_lag_features, datetime_columns=datetime_columns))
     elapsed_time = time.time() - start_time
     new_columns = [col for col in df_x if col not in start_columns]
-    pprint(f'Time elapsed for {create_lag_features}: {elapsed_time} \nColumns updated: {len(new_columns)}')
+    pprint(f'Time elapsed for {create_lag_features}: {time.time() - start_time} \nColumns updated: {len(new_columns)}')
 
     # Aggregations
     start_time = time.time()
+    pprint('Aggregations')
     start_columns = df_x.columns
     selected_for_aggregation = select_aggregation_columns(dt_features)
     df_x = create_aggregations(df_x, by=selected_for_aggregation)
@@ -268,38 +286,45 @@ def transform_data(df_x, target):
 
     # Constant Features
     start_time = time.time()
+    pprint('Constant Features')
     constant_columns = constant_features(df_x)
     df_x = drop_columns(df_x, cols=constant_columns)
     pipeline.append(partial(drop_columns, cols=constant_columns))
     pprint(f'Time elapsed for {drop_columns}: {time.time() - start_time} \nColumns updated: {len(constant_columns)}')
 
-    # Categorical Features
-    start_time = time.time()
-    categorical = select_for_encoding(df_x, max_unique=20)
-    df_x = one_hot_encoding_fast(df_x, categorical=categorical)
-    pipeline.append(partial(one_hot_encoding_fast, categorical=categorical))
-    pprint(f'Time elapsed for {one_hot_encoding_fast}: {time.time() - start_time} \nColumns updated: {len(categorical)}')
-
-    # Missings
-    start_time = time.time()
-    columns_with_missings = find_missings(df_x)
-    df_x = fill_missings(df_x, columns=columns_with_missings)
-    pipeline.append(partial(fill_missings, columns=columns_with_missings))
-    pprint(f'Time elapsed for {fill_missings}: {time.time() - start_time} \nColumns updated: {len(columns_with_missings)}')
+    # # Categorical Features
+    # start_time = time.time()
+    # pprint('Categorical Features')
+    # categorical = select_for_encoding(df_x, max_unique=20)
+    # df_x = one_hot_encoding_fast(df_x, categorical=categorical)
+    # pipeline.append(partial(one_hot_encoding_fast, categorical=categorical))
+    # pprint(f'Time elapsed for {one_hot_encoding_fast}: {time.time() - start_time} \nColumns updated: {len(categorical)}')
 
     # Keep Numeric
     start_time = time.time()
+    pprint('Keep Numeric')
     numeric_columns = select_numeric_columns(df_x)
     df_x = keep_columns(df_x, columns=numeric_columns)
     pipeline.append(partial(keep_columns, columns=numeric_columns))
     pprint(f'Time elapsed for {keep_columns}: {time.time() - start_time} \nColumns updated: {len(numeric_columns)}')
 
+    # Missings
+    start_time = time.time()
+    pprint('Missings')
+    columns_with_missings = find_missings(df_x)
+    df_x = fill_missings(df_x, columns=columns_with_missings)
+    # pipeline.append(partial(fill_missings, columns=columns_with_missings))
+    pipeline.append(partial(fill_missings, columns=df_x.columns))
+    pprint(f'Time elapsed for {fill_missings}: {time.time() - start_time} \nColumns updated: {len(columns_with_missings)}')
+
     # Scale
     start_time = time.time()
+    pprint('Scale')
     scaler = create_scaler(df_x)
     df_x = scale(df_x, scaler)
     pipeline.append(partial(scale, scaler=scaler))
     pprint(f'Time elapsed for {scale}: {time.time() - start_time} \nColumns updated: {len(numeric_columns)}')
+    pprint(f'Total Elapsed Time: {time.time() - total_time}')
 
     df_transformed = df_x
     return pipeline, df_transformed
@@ -324,39 +349,98 @@ def models_factory(base_model, **params):
         yield model
 
 
-def assess(model):
+def assess(model, task, folds=10):
     print('----------------------------\n', model, '\n')
     train_err, valid_err, test_err = [], [], []
-    for i in range(10):
-        df_x, target = load(1, 'train')
-        _, y_test = load(1, 'test-target')
-        x_test, _ = load(1, 'test')
+    for i in range(folds):
+        df_x, target = load(task, 'train')
+        _, y_test = load(task, 'test-target')
+        x_test, _ = load(task, 'test')
 
         x_train, x_valid, y_train, y_valid = train_test_split(df_x, target, test_size=.2, random_state=i * 1234)
 
         pipeline, x_train = transform_data(x_train, y_train)
 
+        start_time = time.time()
+        print(f'Training model: {model}')
         model.fit(x_train, y_train)
         pipeline.append(partial(make_predictions, model=model))
+        print(f'Elapsed Time: {time.time() - start_time}')
 
+        start_time = time.time()
+        print(f'Predicting for train')
         train_predictions = make_predictions(x_train, model)
         train_rmse = root_mean_squared_error(y_train, train_predictions)
         train_err.append(train_rmse)
+        print(f'Elapsed Time: {time.time() - start_time}')
 
+        start_time = time.time()
+        print(f'Predicting for validatoins')
         valid_predictions = predict(x_valid, pipeline)
         valid_rmse = root_mean_squared_error(y_valid, valid_predictions)
         valid_err.append(valid_rmse)
+        print(f'Elapsed Time: {time.time() - start_time}')
 
+        start_time = time.time()
+        print(f'Predicting for test')
         test_predictions = predict(x_test, pipeline)
         test_rmse = root_mean_squared_error(y_test, test_predictions)
         test_err.append(test_rmse)
+        print(f'Elapsed Time: {time.time() - start_time}')
 
-    #     print('----------------------------')
-    #     print(f'Train RMSE: {train_rmse}, \nValidation RMSE: {valid_rmse}, \nTest RMSE: {test_rmse}')
-    #     print('----------------------------')
     df_err = pd.DataFrame(dict(train=train_err, valid=valid_err, test=test_err))
     display(df_err.mean())
     df_err.plot(kind='bar')
     plt.show()
+    print('----------------------------')
+    return df_err
+
+
+def assess_lightgbm(params, task, folds=10):
+    pprint(f'Task: {task}',)
+    start_time = time.time()
+    train_err, valid_err, test_err = [], [], []
+    for i in range(folds):
+        df_x, target = load(task, 'train')
+        _, y_test = load(task, 'test-target')
+        x_test, _ = load(task, 'test')
+
+        x_train, x_valid, y_train, y_valid = train_test_split(df_x, target, test_size=.2, random_state=i * 1234)
+
+        pipeline, x_train = transform_data(x_train, y_train)
+
+        model = lgb.train(params, lgb.Dataset(x_train, label=y_train), 600)
+        pipeline.append(partial(make_predictions, model=model))
+
+        if task < 4:
+            train_predictions = make_predictions(x_train, model)
+            train_rmse = root_mean_squared_error(y_train, train_predictions)
+            train_err.append(train_rmse)
+
+            valid_predictions = predict(x_valid, pipeline)
+            valid_rmse = root_mean_squared_error(y_valid, valid_predictions)
+            valid_err.append(valid_rmse)
+
+            test_predictions = predict(x_test, pipeline)
+            test_rmse = root_mean_squared_error(y_test, test_predictions)
+            test_err.append(test_rmse)
+        else:
+            train_predictions = make_predictions(x_train, model)
+            train_auc = roc_auc_score(y_train, train_predictions)
+            train_err.append(train_auc)
+
+            valid_predictions = predict(x_valid, pipeline)
+            valid_auc = roc_auc_score(y_valid, valid_predictions)
+            valid_err.append(valid_auc)
+
+            test_predictions = predict(x_test, pipeline)
+            test_auc = roc_auc_score(y_test, test_predictions)
+            test_err.append(test_auc)
+
+    df_err = pd.DataFrame(dict(train=train_err, valid=valid_err, test=test_err))
+    display(df_err.mean())
+    df_err.plot(kind='bar')
+    plt.show()
+    print('Elapsed Time: ', time.time() - start_time)
     print('----------------------------')
     return df_err
