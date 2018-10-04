@@ -5,4 +5,5 @@ services:
     volumes: 
       - "/home/dmitrymikhailovich_/:/cnt:rw"
     ports:
-     - "8888:8888"
+     - "5100:8888"
+    command: jupyter lab --ip 0.0.0.0 --no-browser --allow-root
