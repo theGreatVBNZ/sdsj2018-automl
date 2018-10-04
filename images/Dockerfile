@@ -7,4 +7,4 @@ RUN apt update -y && apt install vim -y
 
 WORKDIR /cnt
 
-RUN jupyter lab
+CMD jupyter lab
