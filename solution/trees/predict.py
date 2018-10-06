@@ -4,8 +4,6 @@ import pandas as pd
 import pickle
 import time
 
-from utils import transform_data, make_predictions, root_mean_squared_error, pprint, predict
-
 # use this to stop the algorithm before time limit exceeds
 TIME_LIMIT = int(os.environ.get('TIME_LIMIT', 5*60))
 
@@ -23,11 +21,23 @@ if __name__ == '__main__':
     with open(pipeline_path, 'rb') as fin:
         pipeline = pickle.load(fin)
 
+    model_path = os.path.join(args.model_dir, 'model.pkl')
+    with open(model_path, 'rb') as fin:
+        model = pickle.load(fin)
+
     # read dataset
     df = pd.read_csv(args.test_csv)
     print(f'Dataset read, shape {df.shape}')
 
-    df['prediction'] = predict(df, pipeline)
+    x = pipeline.transform(df)
+    print(f'Transformed Data: {df.shape}')
+
+    try:
+        prediction = model.predict_proba(x)[:, 1]
+    except AttributeError:
+        prediction = model.predict(x)
+
+    df['prediction'] = prediction
     df[['line_id', 'prediction']].to_csv(args.prediction_csv, index=False)
 
     print('Prediction time: {}'.format(time.time() - start_time))

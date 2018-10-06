@@ -167,12 +167,6 @@ def fill_missings(df_x, columns):
 
 
 def select_numeric_columns(df_x):
-    # for col in df_x.columns:
-    #     try:
-    #         col.startswith('number')
-    #     except Exception:
-    #         print(col, df_x[col])
-
     numeric_columns = [
         col_name
         for col_name in df_x.columns
@@ -264,15 +258,15 @@ def transform_data(df_x, target):
     pipeline.append(partial(transform_datetime_features, datetime_columns=datetime_columns))
     pprint(f'Time elapsed for {transform_datetime_features}: {time.time() - start_time} \nColumns updated: {len(dt_features)}')
 
-    # Lag Features
-    start_time = time.time()
-    pprint('Lag Features')
-    start_columns = df_x.columns
-    df_x = create_lag_features(df_x, datetime_columns)
-    pipeline.append(partial(create_lag_features, datetime_columns=datetime_columns))
-    elapsed_time = time.time() - start_time
-    new_columns = [col for col in df_x if col not in start_columns]
-    pprint(f'Time elapsed for {create_lag_features}: {time.time() - start_time} \nColumns updated: {len(new_columns)}')
+    # # Lag Features
+    # start_time = time.time()
+    # pprint('Lag Features')
+    # start_columns = df_x.columns
+    # df_x = create_lag_features(df_x, datetime_columns)
+    # pipeline.append(partial(create_lag_features, datetime_columns=datetime_columns))
+    # elapsed_time = time.time() - start_time
+    # new_columns = [col for col in df_x if col not in start_columns]
+    # pprint(f'Time elapsed for {create_lag_features}: {time.time() - start_time} \nColumns updated: {len(new_columns)}')
 
     # Aggregations
     start_time = time.time()
